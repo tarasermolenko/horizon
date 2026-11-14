@@ -2,9 +2,9 @@
   Shop-by-shape tiles for collection pages.
 
   Turns one list filter (default "Style") into a row of picture tiles above
-  the product grid. A tile click shows only that shape: it replaces any shape
-  already chosen and keeps every other filter (color, price, sort). Clicking
-  the active tile, or "All", removes the shape filter.
+  the product grid. Tiles toggle: a click adds that shape to the ones already
+  chosen, and clicking a chosen shape removes it, keeping every other filter
+  (color, price, sort). "All" removes every shape.
 
   Tile pictures come from the "Picture products" setting: for each filter
   value, the first listed product whose filter metafield holds that value
@@ -81,11 +81,7 @@
     assign active_count = shape_filter.active_values.size
     assign total_count = shape_filter.values | map: 'count' | sum
 
-    assign base_url = shape_filter.url_to_remove
-    assign joiner = '?'
-    if base_url contains '?'
-      assign joiner = '&'
-    endif
+    assign all_shapes_url = shape_filter.url_to_remove
   endif
 %}
 
@@ -122,19 +118,10 @@
           assign tile_label = value.label | remove_first: shared_prefix
         endif
 
-        if value.active and active_count == 1
+        if value.active
           assign tile_url = value.url_to_remove
-        elsif active_count == 0
-          assign tile_url = value.url_to_add
         else
-          # Another shape is active: start from the URL without any shape, then add this one
-          capture tile_url
-            echo base_url
-            echo joiner
-            echo value.param_name
-            echo '='
-            echo value.value | url_encode
-          endcapture
+          assign tile_url = value.url_to_add
         endif
 
         assign is_disabled = false
@@ -150,6 +137,7 @@
             class="ase-shape-tiles__tile"
             href="{{ tile_url }}"
             data-shape-tile
+            data-value="{{ value.value | escape }}"
             {% if value.active %}
               aria-current="true"
             {% endif %}
@@ -217,6 +205,7 @@
       data-section-id="{{ section.id }}"
       data-default-open="{{ section.settings.default_open }}"
       data-collapse-on-select="{{ section.settings.collapse_on_select }}"
+      data-param-name="{{ shape_filter.values.first.param_name | escape }}"
     >
       {%- comment -%}
         Server markup always reflects "Open by default". The element then applies
@@ -252,8 +241,9 @@
           <li class="ase-shape-tiles__item">
             <a
               class="ase-shape-tiles__tile"
-              href="{{ base_url }}"
+              href="{{ all_shapes_url }}"
               data-shape-tile
+              data-shape-all
               {% if active_count == 0 %}
                 aria-current="true"
               {% endif %}
@@ -531,12 +521,29 @@
         if (!facetsForm || typeof facetsForm.updateFiltersByURL !== 'function') return;
 
         event.preventDefault();
-        // Show the new active tile straight away; the re-render confirms it.
+
+        // Build the URL from the current address rather than the tile's href:
+        // the href was rendered before any taps since the last re-render, so a
+        // quick second tap would otherwise drop the first shape.
+        const url = new URL(window.location.href);
+        url.searchParams.delete('page');
+        const paramName = this.dataset.paramName;
+        const chosen = url.searchParams.getAll(paramName);
+        url.searchParams.delete(paramName);
+        let next = [];
+        if (!tile.hasAttribute('data-shape-all')) {
+          const value = tile.dataset.value;
+          next = chosen.includes(value) ? chosen.filter((v) => v !== value) : [...chosen, value];
+        }
+        next.forEach((v) => url.searchParams.append(paramName, v));
+
+        // Show the new selection straight away; the re-render confirms it.
         this.querySelectorAll('[data-shape-tile]').forEach((link) => {
-          if (link === tile) link.setAttribute('aria-current', 'true');
+          const on = link.hasAttribute('data-shape-all') ? next.length === 0 : next.includes(link.dataset.value);
+          if (on) link.setAttribute('aria-current', 'true');
           else link.removeAttribute('aria-current');
         });
-        facetsForm.updateFiltersByURL(tile.href);
+        facetsForm.updateFiltersByURL(url.toString());
         if (this.dataset.collapseOnSelect === 'true') this.setOpen(false);
       };
 
@@ -622,8 +629,8 @@
       "type": "checkbox",
       "id": "collapse_on_select",
       "label": "Collapse after selection",
-      "info": "Automatically minimizes the tiles after a shape is selected.",
-      "default": true
+      "info": "Automatically minimizes the tiles after a shape is selected. Shoppers then have to reopen them to add another shape.",
+      "default": false
     },
     {
       "type": "checkbox",
