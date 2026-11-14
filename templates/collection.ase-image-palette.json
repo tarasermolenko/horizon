@@ -272,7 +272,10 @@
           "premium-dmc-sew-on-rectangular-crystal"
         ],
         "heading": "Shop by shape",
+        "heading_font_size": 16,
         "show_all_label": "All shapes",
+        "default_open": true,
+        "collapse_on_select": true,
         "show_count": true,
         "image_zoom": 200,
         "section_width": "page-width",

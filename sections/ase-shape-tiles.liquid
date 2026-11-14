@@ -74,8 +74,9 @@
       endif
     endfor
 
-    # Square tile picture widths for the srcset; covers ~160px tiles at 3x
-    assign tile_image_sizes = '160,240,320,480' | split: ','
+    # Square tile picture widths for the srcset; covers ~160px desktop tiles
+    # and half-width phone tiles (~200px) at 3x
+    assign tile_image_sizes = '160,240,320,480,640' | split: ','
 
     assign active_count = shape_filter.active_values.size
     assign total_count = shape_filter.values | map: 'count' | sum
@@ -180,7 +181,7 @@
             <img
               src="{{ tile_src }}"
               srcset="{{ srcset }}"
-              sizes="(min-width: 750px) 160px, 92px"
+              sizes="(min-width: 750px) 160px, 50vw"
               width="{{ tile_image_sizes | last }}"
               height="{{ tile_image_sizes | last }}"
               loading="lazy"
@@ -214,10 +215,38 @@
     <ase-shape-tiles
       class="ase-shape-tiles"
       data-section-id="{{ section.id }}"
+      data-default-open="{{ section.settings.default_open }}"
+      data-collapse-on-select="{{ section.settings.collapse_on_select }}"
     >
-      {%- if section.settings.heading != blank -%}
-        <h2 class="ase-shape-tiles__heading">{{ section.settings.heading | escape }}</h2>
-      {%- endif -%}
+      {%- comment -%}
+        Server markup always reflects "Open by default". The element then applies
+        the shopper's remembered open/closed choice, and re-applies it after
+        every re-render (which resets this markup).
+      {%- endcomment -%}
+      <button
+        type="button"
+        class="ase-shape-tiles__toggle"
+        aria-expanded="{{ section.settings.default_open }}"
+        aria-controls="ShapeTiles-{{ section.id }}"
+        data-shape-toggle
+      >
+        <span class="ase-shape-tiles__heading" style="font-size: {{ section.settings.heading_font_size }}px;">
+          {{- section.settings.heading | escape -}}
+        </span>
+        <span class="ase-shape-tiles__chevron" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </span>
+      </button>
+      <div
+        class="ase-shape-tiles__collapsible{% unless section.settings.default_open %} ase-shape-tiles__collapsible--closed{% endunless %}"
+        id="ShapeTiles-{{ section.id }}"
+        {% unless section.settings.default_open %}
+          inert
+        {% endunless %}
+      >
+      <div class="ase-shape-tiles__clip">
       <div class="ase-shape-tiles__scroller">
         <ul class="ase-shape-tiles__list" role="list">
           <li class="ase-shape-tiles__item">
@@ -244,6 +273,8 @@
           {{ tiles }}
         </ul>
       </div>
+      </div>
+      </div>
     </ase-shape-tiles>
   </div>
 {% endif %}
@@ -255,20 +286,64 @@
     gap: 12px;
   }
 
-  .ase-shape-tiles__heading {
-    margin: 0;
-    font-family: var(--font-body--family);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  /* Toggle matches the ASE Color palette section that sits below it */
+  .ase-shape-tiles__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
   }
 
-  /* Tiles share the row on desktop and scroll sideways on phones */
-  .ase-shape-tiles__scroller {
-    overflow-x: auto;
-    scrollbar-width: thin;
+  .ase-shape-tiles__heading {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .ase-shape-tiles__chevron {
+    display: flex;
+    align-items: center;
+    transition: transform 0.3s ease;
+  }
+
+  .ase-shape-tiles__toggle[aria-expanded='false'] .ase-shape-tiles__chevron {
+    transform: rotate(-90deg);
+  }
+
+  .ase-shape-tiles__collapsible {
+    display: grid;
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition: grid-template-rows 0.3s ease, opacity 0.3s ease;
+  }
+
+  .ase-shape-tiles__collapsible--closed {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+
+  /* Set while restoring the remembered state, so it doesn't animate on load */
+  .ase-shape-tiles--instant .ase-shape-tiles__collapsible,
+  .ase-shape-tiles--instant .ase-shape-tiles__chevron {
+    transition: none;
+  }
+
+  /* Clips the tiles while folding; the negative margin keeps tile outlines visible */
+  .ase-shape-tiles__clip {
+    min-height: 0;
+    overflow: hidden;
     margin-inline: -4px;
+  }
+
+  /* Phones: two columns that wrap. Desktop: one row, scrolling only if it overflows. */
+  .ase-shape-tiles__scroller {
     padding: 4px;
   }
 
@@ -277,13 +352,19 @@
     margin: 0;
     padding: 0;
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 92px;
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 10px;
   }
 
   @media screen and (min-width: 750px) {
+    .ase-shape-tiles__scroller {
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
     .ase-shape-tiles__list {
+      grid-template-columns: none;
+      grid-auto-flow: column;
       grid-auto-columns: minmax(104px, 1fr);
       gap: 12px;
     }
@@ -375,7 +456,9 @@
 
   @media (prefers-reduced-motion: reduce) {
     .ase-shape-tiles__image,
-    .ase-shape-tiles__media {
+    .ase-shape-tiles__media,
+    .ase-shape-tiles__collapsible,
+    .ase-shape-tiles__chevron {
       transition: none;
     }
   }
@@ -385,6 +468,8 @@
   if (!customElements.get('ase-shape-tiles')) {
     class AseShapeTiles extends HTMLElement {
       connectedCallback() {
+        this.open = this.readSavedOpen() ?? this.dataset.defaultOpen === 'true';
+        this.applyOpen({ instant: true });
         this.addEventListener('click', this.onClick);
         document.addEventListener('shopify:collection:update', this.onCollectionUpdate);
       }
@@ -394,7 +479,51 @@
         document.removeEventListener('shopify:collection:update', this.onCollectionUpdate);
       }
 
+      get storageKey() {
+        return `ase-shape-tiles-open-${this.dataset.sectionId}`;
+      }
+
+      readSavedOpen() {
+        try {
+          const saved = localStorage.getItem(this.storageKey);
+          return saved === null ? null : saved === 'true';
+        } catch {
+          return null;
+        }
+      }
+
+      setOpen(open) {
+        this.open = open;
+        this.applyOpen();
+        try {
+          localStorage.setItem(this.storageKey, String(open));
+        } catch {
+          // Storage blocked (private mode): the choice just isn't remembered.
+        }
+      }
+
+      // Puts the markup in line with this.open. Called on connect and after each
+      // re-render, since the server markup only knows the "Open by default" setting.
+      applyOpen({ instant = false } = {}) {
+        const toggle = this.querySelector('[data-shape-toggle]');
+        const panel = this.querySelector('.ase-shape-tiles__collapsible');
+        if (!toggle || !panel) return;
+
+        if (instant) this.classList.add('ase-shape-tiles--instant');
+        toggle.setAttribute('aria-expanded', String(this.open));
+        panel.classList.toggle('ase-shape-tiles__collapsible--closed', !this.open);
+        panel.inert = !this.open;
+        if (instant) {
+          requestAnimationFrame(() => requestAnimationFrame(() => this.classList.remove('ase-shape-tiles--instant')));
+        }
+      }
+
       onClick = (event) => {
+        if (event.target.closest('[data-shape-toggle]')) {
+          this.setOpen(!this.open);
+          return;
+        }
+
         const tile = event.target.closest('[data-shape-tile]');
         if (!tile || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
 
@@ -408,6 +537,7 @@
           else link.removeAttribute('aria-current');
         });
         facetsForm.updateFiltersByURL(tile.href);
+        if (this.dataset.collapseOnSelect === 'true') this.setOpen(false);
       };
 
       // Any filter change (tiles, filter bar, removing a pill) re-renders this
@@ -419,6 +549,7 @@
           await event.promise;
           const { sectionRenderer } = await import('@theme/section-renderer');
           await sectionRenderer.renderSection(sectionId);
+          this.applyOpen({ instant: true });
         } catch (error) {
           console.error(error);
         }
@@ -465,10 +596,34 @@
       "default": "Shop by shape"
     },
     {
+      "type": "range",
+      "id": "heading_font_size",
+      "label": "Heading font size",
+      "min": 10,
+      "max": 36,
+      "step": 1,
+      "unit": "px",
+      "default": 16
+    },
+    {
       "type": "text",
       "id": "show_all_label",
       "label": "Show all label",
       "default": "All shapes"
+    },
+    {
+      "type": "checkbox",
+      "id": "default_open",
+      "label": "Open by default",
+      "info": "After a shopper opens or closes the tiles, their choice is remembered on their device.",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "collapse_on_select",
+      "label": "Collapse after selection",
+      "info": "Automatically minimizes the tiles after a shape is selected.",
+      "default": true
     },
     {
       "type": "checkbox",
