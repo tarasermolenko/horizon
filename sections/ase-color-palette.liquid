@@ -303,28 +303,47 @@
 
 <script>
   (function() {
-    const section = document.querySelector('[data-section-id="{{ section.id }}"]') || document.getElementById('shopify-section-{{ section.id }}');
+    const sectionId = '{{ section.id }}';
+    const section = document.getElementById('shopify-section-' + sectionId);
     if (!section) return;
 
-    // Toggle visibility with localStorage persistence
-    const STORAGE_KEY = 'ase-color-grid-open-{{ section.id }}';
-    const toggleBtn = section.querySelector('[data-color-grid-toggle]');
-    const collapsible = section.querySelector('[data-color-grid-collapsible]');
-    if (toggleBtn && collapsible) {
-      // Restore saved state on load
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved !== null) {
-        const isOpen = saved === 'true';
-        toggleBtn.setAttribute('aria-expanded', isOpen);
-        collapsible.classList.toggle('ase-color-grid__collapsible--closed', !isOpen);
-      }
+    const STORAGE_KEY = 'ase-color-grid-open-' + sectionId;
+    const paramName = '{{ color_filter.values[0].param_name | default: "" }}';
+    const collapseOnSelect = {{ section.settings.collapse_on_select | json }};
 
-      toggleBtn.addEventListener('click', () => {
-        const isOpen = toggleBtn.getAttribute('aria-expanded') === 'true';
-        toggleBtn.setAttribute('aria-expanded', !isOpen);
-        collapsible.classList.toggle('ase-color-grid__collapsible--closed', isOpen);
-        localStorage.setItem(STORAGE_KEY, !isOpen);
-      });
+    // Elements are looked up on use, not cached: the section is re-rendered
+    // (morphed) after every filter change, which can replace them.
+    const getToggle = () => section.querySelector('[data-color-grid-toggle]');
+    const getCollapsible = () => section.querySelector('[data-color-grid-collapsible]');
+
+    function readSavedOpen() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved === null ? null : saved === 'true';
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function setOpen(isOpen, remember) {
+      const toggleBtn = getToggle();
+      const collapsible = getCollapsible();
+      if (!toggleBtn || !collapsible) return;
+      toggleBtn.setAttribute('aria-expanded', isOpen);
+      collapsible.classList.toggle('ase-color-grid__collapsible--closed', !isOpen);
+      if (remember) {
+        try {
+          localStorage.setItem(STORAGE_KEY, isOpen);
+        } catch (e) {
+          // Storage blocked (private mode): the choice just isn't remembered.
+        }
+      }
+    }
+
+    // The server markup only knows "Open by default"; apply the shopper's saved choice.
+    function restoreOpen() {
+      const saved = readSavedOpen();
+      if (saved !== null) setOpen(saved, false);
     }
 
     function getFacetsForm() {
@@ -332,105 +351,89 @@
       return scopeRoot.querySelector('facets-form-component') || document.querySelector('facets-form-component');
     }
 
-    function buildFilterURL(paramName, paramValue, toggle) {
+    function buildFilterURL(paramValue) {
       const url = new URL(window.location.href);
       url.searchParams.delete('page');
-
-      if (toggle) {
-        const existing = url.searchParams.getAll(paramName);
-        if (existing.includes(paramValue)) {
-          url.searchParams.delete(paramName);
-          existing.filter(v => v !== paramValue).forEach(v => url.searchParams.append(paramName, v));
-        } else {
-          url.searchParams.append(paramName, paramValue);
-        }
-      }
-
-      return url.toString();
-    }
-
-    function clearColorFilter() {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('page');
-      const paramName = '{{ color_filter.values[0].param_name | default: "" }}';
-      if (paramName) {
-        url.searchParams.delete(paramName);
+      const existing = url.searchParams.getAll(paramName);
+      url.searchParams.delete(paramName);
+      if (paramValue !== null) {
+        const next = existing.includes(paramValue)
+          ? existing.filter(v => v !== paramValue)
+          : existing.concat(paramValue);
+        next.forEach(v => url.searchParams.append(paramName, v));
       }
       return url.toString();
     }
 
     function updateActiveStates() {
-      const url = new URL(window.location.href);
-      const paramName = '{{ color_filter.values[0].param_name | default: "" }}';
-      const activeValues = url.searchParams.getAll(paramName);
+      const activeValues = new URL(window.location.href).searchParams.getAll(paramName);
 
-      // Update color buttons
       section.querySelectorAll('[data-color-grid-filter]').forEach(b => {
-        const val = b.getAttribute('data-param-value');
-        b.classList.toggle('ase-color-grid__card--active', activeValues.includes(val));
-        b.setAttribute('aria-pressed', activeValues.includes(val));
+        const isActive = activeValues.includes(b.getAttribute('data-param-value'));
+        b.classList.toggle('ase-color-grid__card--active', isActive);
+        b.setAttribute('aria-pressed', isActive);
       });
 
-      // Update "All" button — active when no filters selected
+      // "All" is active when no color is selected
       section.querySelectorAll('[data-color-grid-clear]').forEach(b => {
         b.classList.toggle('ase-color-grid__card--active', activeValues.length === 0);
       });
     }
 
-    {% if section.settings.collapse_on_select %}
-    function collapseGrid() {
-      if (toggleBtn && collapsible) {
-        toggleBtn.setAttribute('aria-expanded', false);
-        collapsible.classList.add('ase-color-grid__collapsible--closed');
-        localStorage.setItem(STORAGE_KEY, false);
+    function applyFilterURL(newURL) {
+      const facetsForm = getFacetsForm();
+      if (!facetsForm) {
+        window.location.href = newURL;
+        return;
+      }
+      facetsForm.updateFiltersByURL(newURL);
+      updateActiveStates();
+    }
+
+    // One delegated listener, so swatches added by a re-render still respond.
+    function onClick(event) {
+      if (event.target.closest('[data-color-grid-toggle]')) {
+        const isOpen = getToggle().getAttribute('aria-expanded') === 'true';
+        setOpen(!isOpen, true);
+        return;
+      }
+
+      const swatch = event.target.closest('[data-color-grid-filter]');
+      if (swatch) {
+        applyFilterURL(buildFilterURL(swatch.getAttribute('data-param-value')));
+        if (collapseOnSelect) setOpen(false, true);
+        return;
+      }
+
+      if (event.target.closest('[data-color-grid-clear]')) {
+        applyFilterURL(buildFilterURL(null));
       }
     }
-    {% endif %}
 
-    section.querySelectorAll('[data-color-grid-filter]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const paramName = btn.getAttribute('data-param-name');
-        const paramValue = btn.getAttribute('data-param-value');
-        const newURL = buildFilterURL(paramName, paramValue, true);
-        const facetsForm = getFacetsForm();
-        if (facetsForm) {
-          facetsForm.updateFiltersByURL(newURL);
-        } else {
-          window.location.href = newURL;
-        }
-        // Update active states immediately in the UI
-        history.replaceState(null, '', newURL);
+    // Any filter change (this grid, the shape tiles, the filter bar) re-renders
+    // the grid, so it only offers colors available for the current selection
+    // and goes back to all colors when that selection is removed.
+    async function onCollectionUpdate(event) {
+      try {
+        await event.promise;
+        const { sectionRenderer } = await import('@theme/section-renderer');
+        await sectionRenderer.renderSection(sectionId);
+        restoreOpen();
         updateActiveStates();
-        {% if section.settings.collapse_on_select %}
-        collapseGrid();
-        {% endif %}
-      });
-    });
+      } catch (error) {
+        console.error(error);
+      }
+    }
 
-    section.querySelectorAll('[data-color-grid-clear]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const newURL = clearColorFilter();
-        const facetsForm = getFacetsForm();
-        if (facetsForm) {
-          facetsForm.updateFiltersByURL(newURL);
-          history.replaceState(null, '', newURL);
-          updateActiveStates();
-        } else {
-          window.location.href = newURL;
-        }
-      });
-    });
-
-    // Sync active states when the built-in filter changes
-    const onFilterUpdate = () => {
-      requestAnimationFrame(() => updateActiveStates());
-    };
-    document.addEventListener('filter:update', onFilterUpdate);
+    restoreOpen();
+    section.addEventListener('click', onClick);
+    document.addEventListener('shopify:collection:update', onCollectionUpdate);
 
     section.addEventListener(
       'shopify:section:unload',
       () => {
-        document.removeEventListener('filter:update', onFilterUpdate);
+        section.removeEventListener('click', onClick);
+        document.removeEventListener('shopify:collection:update', onCollectionUpdate);
       },
       { once: true }
     );
