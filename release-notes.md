@@ -1,16 +1,16 @@
-# Release Notes - Version 4.1.4
+# Release Notes - Version 4.5.0
 
-This release ships multiple bug fixes and performance improvements.
+Product pages can now list physical stores that have a product in stock, even when they don't offer pickup. This is on by default and can be turned off in the Buy buttons block. This update also includes screen reader accessibility improvements, page speed improvements, and fixes for product layouts and quick add.
 
 ## What's Changed
 
+### Added
+* Added the option to show physical stores that have a product in stock in the product page pickup availability, including stores that don't offer pickup. The option is on by default, so after updating, product pages can list these stores without any setting changes.
+
 ### Fixes and improvements
-* Fixed desktop header submenus that could close before the pointer reached their links.
-* Minimized style tag loading for product cards to improve rendering performance.
-* Reduced layout work during initial page render by measuring header height only on pages that need it.
-* Preloaded price styles for empty product grids to prevent flash of unstyled content.
-* Fixed the Quick add button showing a disabled "Add" instead of "Choose" when a sold-out variant is selected, and kept the cart icon visible on out-of-stock buttons.
-* Removed unused animation and transition CSS rules from the base stylesheet.
-* Removed unused CSS custom properties from the theme's inline styles, reducing the CSS parsed on every page load.
-* Fixed the cart summary not staying in view when scrolling the cart page with "Extend to screen edge" enabled.
-* Improved mega menu keyboard and screen reader accessibility with a dedicated submenu toggle on desktop.
+* Gave the Hero section link an accessible name for screen readers when it links to a product, collection, page, blog, article, policy, the home page, all products, or all collections.
+* Fixed product recommendations showing one product per row when the block's width falls between two layout breakpoints, such as 449.5px.
+* Fixed product details with a fit-content width and long unbroken text overflowing their column on tablet and desktop screens.
+* Linked Image blocks now tell screen readers where the link goes, such as "Collection: Spring", instead of relying on the image's alt text.
+* Improved page speed: Blog posts and Collection list card images after the third section of a page now load lazily, and mobile cards request images closer to their size.
+* Fixed quick add and mobile product hotspots opening an empty or incomplete modal when the product template hides the product information section or its price, variant picker, or buy buttons.
