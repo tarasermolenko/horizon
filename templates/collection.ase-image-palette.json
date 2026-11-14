@@ -255,10 +255,35 @@
         "padding-block-start": 0,
         "padding-block-end": 32
       }
+    },
+    "shape_tiles": {
+      "type": "ase-shape-tiles",
+      "settings": {
+        "filter_option": "Style",
+        "products": [
+          "premium-dmc-sew-on-rivoli-crystal",
+          "premium-dmc-sew-on-tear-drop-crystal",
+          "premium-dmc-sew-on-cosmic-crystal",
+          "premium-dmc-sew-on-navette-crystal",
+          "premium-dmc-sew-on-oval-crystal",
+          "premium-dmc-sew-on-square-crystal",
+          "premium-dmc-sew-on-triangle-crystal",
+          "premium-dmc-sew-on-baguette-crystal",
+          "premium-dmc-sew-on-rectangular-crystal"
+        ],
+        "heading": "Shop by shape",
+        "show_all_label": "All shapes",
+        "show_count": true,
+        "image_zoom": 200,
+        "section_width": "page-width",
+        "padding-block-start": 0,
+        "padding-block-end": 16
+      }
     }
   },
   "order": [
     "section",
+    "shape_tiles",
     "image_grid",
     "main"
   ]
