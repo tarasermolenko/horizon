@@ -275,6 +275,7 @@
         "heading_font_size": 16,
         "show_all_label": "All shapes",
         "default_open": true,
+        "collapse_on_select_mobile": true,
         "collapse_on_select": false,
         "show_count": true,
         "image_zoom": 200,

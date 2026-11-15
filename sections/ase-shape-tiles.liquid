@@ -205,6 +205,7 @@
       data-section-id="{{ section.id }}"
       data-default-open="{{ section.settings.default_open }}"
       data-collapse-on-select="{{ section.settings.collapse_on_select }}"
+      data-collapse-on-select-mobile="{{ section.settings.collapse_on_select_mobile }}"
       data-param-name="{{ shape_filter.values.first.param_name | escape }}"
     >
       {%- comment -%}
@@ -482,14 +483,21 @@
         }
       }
 
-      setOpen(open) {
+      setOpen(open, { remember = true } = {}) {
         this.open = open;
         this.applyOpen();
+        if (!remember) return;
         try {
           localStorage.setItem(this.storageKey, String(open));
         } catch {
           // Storage blocked (private mode): the choice just isn't remembered.
         }
+      }
+
+      // Same breakpoint as the theme's mobile layout (mediaQueryLarge is min-width: 750px).
+      shouldCollapseAfterSelect() {
+        if (this.dataset.collapseOnSelect === 'true') return true;
+        return this.dataset.collapseOnSelectMobile === 'true' && window.matchMedia('(max-width: 749px)').matches;
       }
 
       // Puts the markup in line with this.open. Called on connect and after each
@@ -544,7 +552,9 @@
           else link.removeAttribute('aria-current');
         });
         facetsForm.updateFiltersByURL(url.toString());
-        if (this.dataset.collapseOnSelect === 'true') this.setOpen(false);
+        // Folding after a pick only reveals the products; it isn't saved, so the
+        // tiles aren't found collapsed later (e.g. on desktop, which shares the setting).
+        if (this.shouldCollapseAfterSelect()) this.setOpen(false, { remember: false });
       };
 
       // Any filter change (tiles, filter bar, removing a pill) re-renders this
@@ -627,9 +637,16 @@
     },
     {
       "type": "checkbox",
+      "id": "collapse_on_select_mobile",
+      "label": "Collapse after selection on mobile",
+      "info": "On phones, minimizes the tiles after a shape is selected so the products come into view. Desktop stays open.",
+      "default": true
+    },
+    {
+      "type": "checkbox",
       "id": "collapse_on_select",
-      "label": "Collapse after selection",
-      "info": "Automatically minimizes the tiles after a shape is selected. Shoppers then have to reopen them to add another shape.",
+      "label": "Collapse after selection on all devices",
+      "info": "Also minimizes the tiles on desktop. Shoppers then have to reopen them to add another shape.",
       "default": false
     },
     {
